@@ -30,9 +30,9 @@ def activation_fn(features, act_fn):
 
 def round_filters(filters, mconfig, skip=False):
   """Round number of filters based on depth multiplier."""
-  multiplier = mconfig.width_coefficient
-  divisor = mconfig.depth_divisor
-  min_depth = mconfig.min_depth
+  multiplier = mconfig['width_coefficient']
+  divisor = mconfig['depth_divisor']
+  min_depth = mconfig['min_depth']
   if skip or not multiplier:
     return filters
 
@@ -67,13 +67,13 @@ def decode_block_string(block_string):
         key, value = block_split[:2]
         block_params[key] = value
 
-    kernel_size = int(block_params['k']),
-    num_repeat = int(block_params['r']),
-    input_filters = int(block_params['i']),
-    output_filters = int(block_params['o']),
-    expand_ratio = int(block_params['e']),
-    se_ratio = float(block_params['se']) if 'se' in block_params else None,
-    strides = int(block_params['s']),
+    kernel_size = int(block_params['k'])
+    num_repeat = int(block_params['r'])
+    input_filters = int(block_params['i'])
+    output_filters = int(block_params['o'])
+    expand_ratio = int(block_params['e'])
+    se_ratio = float(block_params['se']) if 'se' in block_params else None
+    strides = int(block_params['s'])
     conv_type = int(block_params['c']) if 'c' in block_params else 0
 
     block_config = {
@@ -111,5 +111,6 @@ def get_cfg_from_name(name):
     cfg['min_depth'] = 8
     cfg['survival_prob'] = 0.8
     cfg['local_pooling'] = False
+    cfg['conv_dropout'] = None
 
     return cfg
