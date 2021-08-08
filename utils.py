@@ -7,7 +7,7 @@ import functools
 def activation_fn(features, act_fn):
   """Customized non-linear activation type."""
   if act_fn in ('silu', 'swish'):
-    return #torch.nn.swish?
+    return torch.nn.functional.silu(features)
   elif act_fn == 'silu_native':
     return features * torch.sigmoid(features)
   elif act_fn == 'hswish':
@@ -114,3 +114,21 @@ def get_cfg_from_name(name):
     cfg['conv_dropout'] = None
 
     return cfg
+
+
+def drop_connect(inputs, is_training, survival_prob):
+  """Drop the entire conv with given survival probability."""
+  # "Deep Networks with Stochastic Depth", https://arxiv.org/pdf/1603.09382.pdf
+  if not is_training:
+    return inputs
+
+  # Compute tensor.
+  batch_size = inputs.shape[0]
+  random_tensor = survival_prob
+  random_tensor += torch.rand((batch_size, 1, 1, 1), dtype=inputs.dtype)
+  binary_tensor = torch.floor(random_tensor)
+  # Unlike conventional way that multiply survival_prob at test time, here we
+  # divide survival_prob at training time, such that no addition compute is
+  # needed at test time.
+  output = inputs / survival_prob * binary_tensor
+  return output

@@ -32,10 +32,10 @@ class EffnetV2Model(nn.Module):
             if survival_prob:
                 drop_rate = 1.0 - survival_prob
                 survival_prob = 1.0 - drop_rate * float(idx) / len(self.blocks)
-            print(block)
+            print(idx)
             out = block(out, survival_prob=survival_prob)
 
-        out = self.Head(x)
+        out = self.Head(out)
         if self._fc:
             out = self._fc(out)
         return out

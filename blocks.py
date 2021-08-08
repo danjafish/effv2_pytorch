@@ -18,16 +18,16 @@ class SE(nn.Module):
             out_channels=se_filters,
             kernel_size=1,
             stride=1,
-            padding='same',
+            padding=0,
             bias=True
         )
 
-        self._se_extend = torch.nn.Conv2d(
+        self._se_expand = torch.nn.Conv2d(
             in_channels=se_filters,
             out_channels=output_filters,
             kernel_size=1,
             stride=1,
-            padding='same',
+            padding=0,
             bias=True
         )
 
@@ -36,8 +36,10 @@ class SE(nn.Module):
         if self.local_pooling:
             se_tensor = self.avg_pool(x).view(x.size()[0], x.size()[1])
         else:
-            se_tensor = torch.mean(x, -1)
-        se_tensor = self._se_expand(self._act(self._se_reduce(se_tensor)))
+            se_tensor = torch.mean(x, [h_axis, w_axis], keepdim=True)
+
+        se_tensor =self.act(self._se_reduce(se_tensor))
+        se_tensor = self._se_expand(se_tensor)
         return torch.sigmoid(se_tensor) * x
 
 
@@ -83,23 +85,25 @@ class MBConvBlock(nn.Module):
                 out_channels=filters,
                 kernel_size=1,
                 stride=1,
-                padding='same',
+                padding=1,
                 bias=False
             )
 
             self.norm0 = nn.BatchNorm2d(filters)
+
         self.depthwise_conv = DepthwiseConv(
-             in_channels=in_channels,
-             out_channels=filters,  # TODO check what should be here
+             in_channels=filters,
+             out_channels=filters*1,  # TODO check what should be here
              kernel_size=kernel_size,
              stride=self.block_arg['strides'],
              use_bias=False,
+
         )
 
         self.norm1 = nn.BatchNorm2d(filters)
         if self._has_se:
             num_reduced_filters = max(1, int(self.block_arg['input_filters'] * self.block_arg['se_ratio']))
-            self._se = SE(self.cfg, in_channels, num_reduced_filters, filters)
+            self._se = SE(self.cfg, filters, num_reduced_filters, filters)
         else:
             self._se = None
 
@@ -110,33 +114,32 @@ class MBConvBlock(nn.Module):
             out_channels=out_channels,
             kernel_size=1,
             stride=1,
-            padding='same',
+            padding=1,
             bias=False,
         )
         self.norm2 = nn.BatchNorm2d(out_channels)
 
     def residual(self, inp, x, survival_prob):
         # TODO странное условие
-        if (self.block_arg.strides == 1) and (self.block_arg.input_filters == self.block_arg.output_filters):
+        if (self.block_arg['strides'] == 1) and (self.block_arg['input_filters'] == self.block_arg['output_filters']):
             if survival_prob:
-                x = utils.drop_connect(x, survival_prob)  # TODO implement this
+                x = utils.drop_connect(x, True, survival_prob)  # TODO changenot training behaviour
             x = torch.add(x, inp)
+
         return x
 
     def forward(self, x, survival_prob=None):
         inputs = x
-        if self.block_arg.expand_ratio != 1:
+        if self.block_arg['expand_ratio'] != 1:
             x = self._act(self.norm0(self.expand_conv(x)))
-            x = self._act(self._norm1(self._depthwise_conv(x)))
-
-        if self.cfg.conv_dropout and self.block_arg.expand_ratio > 1:
-            x = torch.nn.Dropout(self.cfg.conv_dropout)(x)
-
+            x = self._act(self.norm1(self.depthwise_conv(x)))
+        if self.cfg['conv_dropout'] and self.block_arg['expand_ratio'] > 1:
+            x = torch.nn.Dropout(self.cfg['conv_dropout'])(x)
         if self._se:
             self._se(x)
-
-        x = self._norm2(self._project_conv(x))
-        x = self.residual(x, inputs, survival_prob)
+        x = self.norm2(self.project_conv(x))
+        x = self.residual(inputs, x, survival_prob)
+        print('after MBConv', x.shape)
         return x
 
 
@@ -151,7 +154,7 @@ class FusedMBConvBlock(MBConvBlock):
                 out_channels=filters,
                 kernel_size=kernel_size,
                 stride=self.block_arg['strides'],
-                #padding='same',
+                padding=1,
                 bias=False
             )
 
@@ -159,19 +162,26 @@ class FusedMBConvBlock(MBConvBlock):
 
         if self._has_se:
             num_reduced_filters = max(1, int(self.block_arg['input_filters'] * self.block_arg['se_ratio']))
-            self._se = SE(self.cfg, in_channels, num_reduced_filters, filters)
+            self._se = SE(self.cfg, filters, num_reduced_filters, filters)
         else:
             self._se = None
 
         out_channels = self.block_arg['output_filters']
-        print(filters, out_channels, 1 if self.block_arg['expand_ratio'] != 1 else kernel_size)
+        #o = [i + 2 * p - k - (k - 1) * (d - 1)] / s + 1
+#        s = 1 if self.block_arg['expand_ratio'] != 1 else self.block_arg['strides']
+#        k = 1 if self.block_arg['expand_ratio'] != 1 else kernel_size
+#        d = 1
+#        print(out_channels, s, filters, k)
+#        inp_w =
+#        p = int(int((out_channels - 1)*s - filters + k + (k-1)*(d-1))/2)
+#        print('pad = ', p)
         self.project_conv = torch.nn.Conv2d(
             in_channels=filters,
             out_channels=out_channels,
             kernel_size=1 if self.block_arg['expand_ratio'] != 1 else kernel_size,
-            #stride=1 if self.block_arg['expand_ratio'] != 1 else self.block_arg['strides'],
-            #padding='same',
-            #bias=False,
+            stride=1 if self.block_arg['expand_ratio'] != 1 else self.block_arg['strides'],
+            padding=1,
+            bias=False,
         )
         self.norm1 = nn.BatchNorm2d(out_channels)
 
@@ -179,17 +189,15 @@ class FusedMBConvBlock(MBConvBlock):
         inputs = x
         if self.block_arg['expand_ratio'] != 1:
             x = self._act(self.norm0(self.expand_conv(x)))
-
         if self.cfg['conv_dropout'] and self.block_arg['expand_ratio'] > 1:
             x = torch.nn.Dropout(self.cfg['conv_dropout'])(x)
-
         if self._se:
             self._se(x)
-
         x = self.norm1(self.project_conv(x))
         if self.block_arg['expand_ratio'] == 1:
             x = self._act(x)
-        x = self.residual(x, inputs, survival_prob)
+        x = self.residual(inputs, x, survival_prob)
+        print('after fused conv ', x.shape)
         return x
 
 
@@ -225,7 +233,7 @@ class Head(nn.Module):
             out_channels=out_channels,
             kernel_size=1,
             stride=1,
-            padding='same',
+            padding=1,
             bias=False
             # TODO set initial weights
         )
@@ -238,6 +246,7 @@ class Head(nn.Module):
 
     def forward(self, x):
         outputs = self._act(self._norm(self._conv_head(x)))
+        print('Head after conv block ', outputs.shape)
         if self.cfg.get('local_pooling'):
             outputs = self._avg_pooling(outputs) #TODO fix this
             if self._dropout:
