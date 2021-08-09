@@ -17,7 +17,7 @@ class SE(nn.Module):
             out_channels=se_filters,
             kernel_size=1,
             stride=1,
-            padding=0,
+            padding='same',
             bias=True
         )
 
@@ -26,7 +26,7 @@ class SE(nn.Module):
             out_channels=output_filters,
             kernel_size=1,
             stride=1,
-            padding=0,
+            padding='same',
             bias=True
         )
 
@@ -45,9 +45,9 @@ class SE(nn.Module):
 class DepthwiseConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, use_bias):
         super(DepthwiseConv, self).__init__()
-        self.depthwise = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=1, groups=in_channels,
-                                   stride=stride, bias=use_bias)
-        self.pointwise = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=use_bias)
+        self.depthwise = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding='same',
+                                   groups=in_channels, bias=use_bias)
+        self.pointwise = nn.Conv2d(in_channels, out_channels, stride=stride, kernel_size=1, bias=use_bias)
 
     def forward(self, x):
         out = self.depthwise(x)
@@ -84,7 +84,7 @@ class MBConvBlock(nn.Module):
                 out_channels=filters,
                 kernel_size=1,
                 stride=1,
-                padding=1,
+                padding='same',
                 bias=False
             )
 
@@ -113,7 +113,7 @@ class MBConvBlock(nn.Module):
             out_channels=out_channels,
             kernel_size=1,
             stride=1,
-            padding=1,
+            padding='same',
             bias=False,
         )
         self.norm2 = nn.BatchNorm2d(out_channels)
@@ -138,6 +138,7 @@ class MBConvBlock(nn.Module):
             self._se(x)
         x = self.norm2(self.project_conv(x))
         x = self.residual(inputs, x, survival_prob)
+        print('after MBConv ', x.shape)
         return x
 
 
@@ -165,20 +166,12 @@ class FusedMBConvBlock(MBConvBlock):
             self._se = None
 
         out_channels = self.block_arg['output_filters']
-        #o = [i + 2 * p - k - (k - 1) * (d - 1)] / s + 1
-#        s = 1 if self.block_arg['expand_ratio'] != 1 else self.block_arg['strides']
-#        k = 1 if self.block_arg['expand_ratio'] != 1 else kernel_size
-#        d = 1
-#        print(out_channels, s, filters, k)
-#        inp_w =
-#        p = int(int((out_channels - 1)*s - filters + k + (k-1)*(d-1))/2)
-#        print('pad = ', p)
         self.project_conv = torch.nn.Conv2d(
             in_channels=filters,
             out_channels=out_channels,
             kernel_size=1 if self.block_arg['expand_ratio'] != 1 else kernel_size,
             stride=1 if self.block_arg['expand_ratio'] != 1 else self.block_arg['strides'],
-            padding=1,
+            padding='same',
             bias=False,
         )
         self.norm1 = nn.BatchNorm2d(out_channels)
@@ -195,6 +188,7 @@ class FusedMBConvBlock(MBConvBlock):
         if self.block_arg['expand_ratio'] == 1:
             x = self._act(x)
         x = self.residual(inputs, x, survival_prob)
+        print('after FusedConv ', x.shape)
         return x
 
 
@@ -229,13 +223,13 @@ class Head(nn.Module):
             out_channels=out_channels,
             kernel_size=1,
             stride=1,
-            padding=1,
+            padding='same',
             bias=False
         )
         self.h_axis, self.w_axis = [2, 3]
         self._norm = nn.BatchNorm2d(round_filters(cfg.get('feature_size') or 1280, cfg))
         self._act = utils.get_act_fn(cfg['act_fn'])
-        self._avg_pooling = nn.AvgPool2d(kernel_size=(9,9))
+        self._avg_pooling = nn.AdaptiveAvgPool2d(output_size=(1, 1))
         self._dropout = nn.Dropout(cfg['dropout_rate']) if cfg['dropout_rate'] > 0 else None
         self._fc = None  # TODO check it (no such parameter in original)
 
@@ -243,7 +237,7 @@ class Head(nn.Module):
     def forward(self, x):
         outputs = self._act(self._norm(self._conv_head(x)))
         if self.cfg.get('local_pooling'):
-            outputs = self._avg_pooling(outputs) #TODO fix this
+            outputs = self._avg_pooling(outputs)  # TODO fix this
             if self._dropout:
                 outputs = self._dropout(outputs)
             if self._fc: # TODO where are no fc in head, how it works?

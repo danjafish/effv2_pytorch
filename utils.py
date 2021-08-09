@@ -2,6 +2,7 @@ import torch
 from torch.nn import functional
 import re
 import functools
+import numpy as np
 
 
 def activation_fn(features, act_fn):
@@ -150,6 +151,7 @@ def get_cfg_from_name(name):
     cfg['survival_prob'] = 0.8
     cfg['local_pooling'] = False
     cfg['conv_dropout'] = None
+    cfg['num_classes'] = 1000
 
     return cfg
 
