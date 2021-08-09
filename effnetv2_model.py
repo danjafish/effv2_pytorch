@@ -1,10 +1,11 @@
 from blocks import MBConvBlock, FusedMBConvBlock, Steam, Head
 import torch.nn as nn
+from utils import round_filters
 from utils import get_cfg_from_name
 
 
 class EffnetV2Model(nn.Module):
-    def __init__(self, model_name='efficientnetv2-s', include_top=True, n_channels=3):
+    def __init__(self, model_name='efficientnetv2-s', include_top=False, n_channels=3):
         super().__init__()
         self.model_name = model_name
         self.include_top = include_top
@@ -18,9 +19,12 @@ class EffnetV2Model(nn.Module):
         for ind, block_arg in enumerate(self.cfg['blocks_args']):
             type = block_arg['conv_type']
             self.blocks.append(conv_block[type](block_arg, self.cfg))
-        print(len(self.blocks))
         self.Steam = Steam(self.cfg, self.n_channels, self.cfg['blocks_args'][0]['input_filters'])
         self.Head = Head(self.cfg)
+        if self.include_top and self.cfg['num_classes']:
+            self._fc = nn.Linear(round_filters(self.cfg.get('feature_size') or 1280, self.cfg), self.cfg['num_classes'])
+        else:
+            self._fc = None
 
     def forward(self, x):
         out = self.Steam(x)
@@ -32,7 +36,6 @@ class EffnetV2Model(nn.Module):
             if survival_prob:
                 drop_rate = 1.0 - survival_prob
                 survival_prob = 1.0 - drop_rate * float(idx) / len(self.blocks)
-            print(idx)
             out = block(out, survival_prob=survival_prob)
 
         out = self.Head(out)

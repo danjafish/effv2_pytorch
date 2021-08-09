@@ -6,7 +6,6 @@ import copy
 
 
 class SE(nn.Module):
-    # TODO understand SE block
     def __init__(self, cfg, inp_channels, se_filters, output_filters):
         super(SE, self).__init__()
         self.local_pooling = cfg['local_pooling']
@@ -139,7 +138,6 @@ class MBConvBlock(nn.Module):
             self._se(x)
         x = self.norm2(self.project_conv(x))
         x = self.residual(inputs, x, survival_prob)
-        print('after MBConv', x.shape)
         return x
 
 
@@ -197,7 +195,6 @@ class FusedMBConvBlock(MBConvBlock):
         if self.block_arg['expand_ratio'] == 1:
             x = self._act(x)
         x = self.residual(inputs, x, survival_prob)
-        print('after fused conv ', x.shape)
         return x
 
 
@@ -211,9 +208,8 @@ class Steam(nn.Module):
             out_channels=round_filters(out_channels, cfg),
             kernel_size=3,
             stride=2,
-            # padding='same',  # TODO check padding
+            padding=1,  # TODO check padding
             bias=False
-            # TODO set initial weights
         )
 
         self._norm = nn.BatchNorm2d(round_filters(out_channels, cfg))
@@ -235,18 +231,17 @@ class Head(nn.Module):
             stride=1,
             padding=1,
             bias=False
-            # TODO set initial weights
         )
-
+        self.h_axis, self.w_axis = [2, 3]
         self._norm = nn.BatchNorm2d(round_filters(cfg.get('feature_size') or 1280, cfg))
         self._act = utils.get_act_fn(cfg['act_fn'])
-        self._avg_pooling = nn.AvgPool2d(kernel_size=out_channels)
+        self._avg_pooling = nn.AvgPool2d(kernel_size=(9,9))
         self._dropout = nn.Dropout(cfg['dropout_rate']) if cfg['dropout_rate'] > 0 else None
-        self.h_axis, self.w_axis =[2,3]
+        self._fc = None  # TODO check it (no such parameter in original)
+
 
     def forward(self, x):
         outputs = self._act(self._norm(self._conv_head(x)))
-        print('Head after conv block ', outputs.shape)
         if self.cfg.get('local_pooling'):
             outputs = self._avg_pooling(outputs) #TODO fix this
             if self._dropout:
@@ -255,6 +250,6 @@ class Head(nn.Module):
                 outputs = torch.squeeze(outputs, self.h_axis)
                 outputs = torch.squeeze(outputs, self.w_axis)
         else:
-            outputs = self._avg_pooling(outputs)  # TODO fix this
+            outputs = self._avg_pooling(outputs)
             outputs = self._dropout(outputs)
-        return  outputs
+        return outputs
