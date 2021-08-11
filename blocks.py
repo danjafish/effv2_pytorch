@@ -45,6 +45,7 @@ class SE(nn.Module):
 class DepthwiseConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, use_bias):
         super(DepthwiseConv, self).__init__()
+        # TODO check stride in conv layer
         self.depthwise = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding='same',
                                    groups=in_channels, bias=use_bias)
         self.pointwise = nn.Conv2d(in_channels, out_channels, stride=stride, kernel_size=1, bias=use_bias)
@@ -66,8 +67,8 @@ class MBConvBlock(nn.Module):
         self._channel_axis = 1 if self._data_format == 'channels_first' else -1
         self._act = utils.get_act_fn(cfg['act_fn'])
         self._has_se = (
-                self.block_arg['se_ratio'] is not None and
-                0 < self.block_arg['se_ratio'] <= 1)
+            (self.block_arg['se_ratio'] is not None) and
+            (0 < self.block_arg['se_ratio'] <= 1))
 
         self.endpoints = None
 
@@ -78,7 +79,7 @@ class MBConvBlock(nn.Module):
         filters = self.block_arg['input_filters'] * self.block_arg['expand_ratio']
         kernel_size = self.block_arg['kernel_size']
         in_channels = self.in_channels
-        if self.block_arg['expand_ratio'] != 1:
+        if True:#self.block_arg['expand_ratio'] != 1:
             self.expand_conv = torch.nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=filters,
@@ -122,14 +123,14 @@ class MBConvBlock(nn.Module):
         # TODO странное условие
         if (self.block_arg['strides'] == 1) and (self.block_arg['input_filters'] == self.block_arg['output_filters']):
             if survival_prob:
-                x = utils.drop_connect(x, True, survival_prob)  # TODO changenot training behaviour
+                x = utils.drop_connect(x, True, survival_prob)  # TODO change not training behaviour
             x = torch.add(x, inp)
 
         return x
 
     def forward(self, x, survival_prob=None):
         inputs = x
-        if self.block_arg['expand_ratio'] != 1:
+        if True:#self.block_arg['expand_ratio'] != 1:
             x = self._act(self.norm0(self.expand_conv(x)))
             x = self._act(self.norm1(self.depthwise_conv(x)))
         if self.cfg['conv_dropout'] and self.block_arg['expand_ratio'] > 1:
@@ -147,7 +148,7 @@ class FusedMBConvBlock(MBConvBlock):
         filters = self.block_arg['input_filters'] * self.block_arg['expand_ratio']
         kernel_size = self.block_arg['kernel_size']
         in_channels = self.in_channels
-        if self.block_arg['expand_ratio'] != 1:
+        if True:#self.block_arg['expand_ratio'] != 1:
             self.expand_conv = torch.nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=filters,
@@ -178,15 +179,20 @@ class FusedMBConvBlock(MBConvBlock):
 
     def forward(self, x, survival_prob=None):
         inputs = x
-        if self.block_arg['expand_ratio'] != 1:
+        if True:#self.block_arg['expand_ratio'] != 1:
             x = self._act(self.norm0(self.expand_conv(x)))
+
         if self.cfg['conv_dropout'] and self.block_arg['expand_ratio'] > 1:
             x = torch.nn.Dropout(self.cfg['conv_dropout'])(x)
+
         if self._se:
             self._se(x)
+
         x = self.norm1(self.project_conv(x))
+
         if self.block_arg['expand_ratio'] == 1:
             x = self._act(x)
+
         x = self.residual(inputs, x, survival_prob)
         print('after FusedConv ', x.shape)
         return x
