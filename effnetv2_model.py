@@ -2,6 +2,7 @@ from blocks import MBConvBlock, FusedMBConvBlock, Steam, Head
 import torch.nn as nn
 from utils import round_filters
 from utils import get_cfg_from_name
+import copy
 
 
 class EffnetV2Model(nn.Module):
@@ -22,7 +23,12 @@ class EffnetV2Model(nn.Module):
             self.cfg['num_classes'] = self.n_classes
         for ind, block_arg in enumerate(self.cfg['blocks_args']):
             type = block_arg['conv_type']
-            self.blocks.append(conv_block[type](block_arg, self.cfg))
+            for n in range(block_arg['num_repeat']):
+                block_arg_layer = copy.deepcopy(block_arg)
+                if n != 0:
+                    block_arg_layer['input_filters'] = block_arg['output_filters']
+                    block_arg_layer['strides'] = 1
+                self.blocks.append(conv_block[type](block_arg_layer, self.cfg))
         self.blocks = nn.ModuleList(self.blocks)
         self.Steam = Steam(self.cfg, self.n_channels, self.cfg['blocks_args'][0]['input_filters'])
         self.Head = Head(self.cfg)
