@@ -68,7 +68,7 @@ class MBConvBlock(nn.Module):
             (self.block_arg['se_ratio'] is not None) and
             (0 < self.block_arg['se_ratio'] <= 1))
 
-        # Builds the block accordings to arguments.
+        # Builds the block according to arguments.
         self._build()
 
     def _build(self):
@@ -89,7 +89,7 @@ class MBConvBlock(nn.Module):
 
             self.norm0 = nn.BatchNorm2d(filters)
 
-        self.depthwise_conv = nn.Conv2d(filters, filters, kernel_size=kernel_size, groups=in_channels,
+        self.depthwise_conv = nn.Conv2d(filters, filters, kernel_size=kernel_size, groups=filters,
                                         bias=False, stride=self.block_arg['strides'], padding=1)
 
         self.norm1 = nn.BatchNorm2d(filters)
@@ -231,7 +231,6 @@ class Head(nn.Module):
         self._avg_pooling = nn.AdaptiveAvgPool2d(output_size=(1, 1))
         self._dropout = nn.Dropout(cfg['dropout_rate']) if cfg['dropout_rate'] > 0 else None
         self._fc = None  # TODO check it (no such parameter in original)
-
 
     def forward(self, x):
         outputs = self._act(self._norm(self._conv_head(x)))
