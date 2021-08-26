@@ -2,7 +2,6 @@ import torch
 from torch.nn import functional
 import re
 import functools
-import numpy as np
 
 
 def activation_fn(features, act_fn):

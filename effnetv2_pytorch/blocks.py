@@ -1,7 +1,7 @@
 from torch import nn
 import torch
-import utils
-from utils import round_filters
+import effnetv2_pytorch.utils as utils
+from effnetv2_pytorch.utils import round_filters
 import copy
 
 

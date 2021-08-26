@@ -1,7 +1,7 @@
 from setuptools import setup
 
 
-setup(name='effnetv2_model',
+setup(name='effnetv2_pytorch',
       version='0.1',
       description='Custom effnetv2 pytorch',
       url='#',

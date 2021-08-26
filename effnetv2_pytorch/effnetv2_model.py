@@ -1,7 +1,7 @@
-from blocks import MBConvBlock, FusedMBConvBlock, Steam, Head
+from effnetv2_pytorch.blocks import MBConvBlock, FusedMBConvBlock, Steam, Head
 import torch.nn as nn
-from utils import round_filters
-from utils import get_cfg_from_name
+from effnetv2_pytorch.utils import round_filters
+from effnetv2_pytorch.utils import get_cfg_from_name
 import copy
 
 
