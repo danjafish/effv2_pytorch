@@ -4,15 +4,15 @@ My implementation of effnetv2 in pytorch.
 
 Based on original repo: https://github.com/google/automl/tree/master/efficientnetv2
 
+Paper: https://arxiv.org/pdf/2104.00298v3.pdf
+
 This is just a playground project. For better implementation check https://github.com/rwightman/pytorch-image-models/
 
 ## Usage
 
-git clone https://github.com/danjafish/effv2_pytorch.git
-
-To use model type from effnetv2_model import EffnetV2Model.
-
-Optional you may install it with python setup.py install
+1. git clone https://github.com/danjafish/effv2_pytorch.git
+2. Install package with cd effv2_pytorch/ &&  pip install .
+3. Use model as simple as from effnetv2_pytorch.effnetv2_model import EffnetV2Model 
 
 Avaliable params are:
 
