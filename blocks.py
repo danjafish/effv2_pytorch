@@ -41,19 +41,6 @@ class SE(nn.Module):
         return torch.sigmoid(se_tensor) * x
 
 
-# class DepthwiseConv(nn.Module):
-#     def __init__(self, in_channels, out_channels, kernel_size, stride, use_bias):
-#         super(DepthwiseConv, self).__init__()
-#         # TODO check stride in conv layer
-#         self.depthwise = nn.Conv2d(in_channels, in_channels, kernel_size=kernel_size, groups=in_channels, bias=use_bias, stride=stride, padding=1)
-#         self.pointwise = nn.Conv2d(in_channels, out_channels, kernel_size=1)
-#
-#     def forward(self, x):
-#         out = self.depthwise(x)
-#         out = self.pointwise(out)
-#         return out
-
-
 class MBConvBlock(nn.Module):
     def __init__(self, block_arg, cfg):
         super().__init__()
@@ -113,10 +100,9 @@ class MBConvBlock(nn.Module):
         self.norm2 = nn.BatchNorm2d(out_channels)
 
     def residual(self, inp, x, survival_prob):
-        # TODO странное условие
         if (self.block_arg['strides'] == 1) and (self.block_arg['input_filters'] == self.block_arg['output_filters']):
             if survival_prob:
-                x = utils.drop_connect(x, True, survival_prob)  # TODO change not training behaviour
+                x = utils.drop_connect(x, self.training, survival_prob)
             x = torch.add(x, inp)
 
         return x
@@ -132,7 +118,6 @@ class MBConvBlock(nn.Module):
             self._se(x)
         x = self.norm2(self.project_conv(x))
         x = self.residual(inputs, x, survival_prob)
-        # print('after MBConv ', x.shape)
         return x
 
 
@@ -141,7 +126,7 @@ class FusedMBConvBlock(MBConvBlock):
         filters = self.block_arg['input_filters'] * self.block_arg['expand_ratio']
         kernel_size = self.block_arg['kernel_size']
         in_channels = self.in_channels
-        if self.block_arg['expand_ratio'] != 1:  # TODO check
+        if self.block_arg['expand_ratio'] != 1:
             self.expand_conv = torch.nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=filters,
@@ -187,7 +172,6 @@ class FusedMBConvBlock(MBConvBlock):
             x = self._act(x)
 
         x = self.residual(inputs, x, survival_prob)
-        # print('after FusedConv ', x.shape)
         return x
 
 
@@ -201,7 +185,7 @@ class Steam(nn.Module):
             out_channels=round_filters(out_channels, cfg),
             kernel_size=3,
             stride=2,
-            padding=1,  # TODO check padding
+            padding=1,
             bias=False
         )
 
@@ -235,10 +219,10 @@ class Head(nn.Module):
     def forward(self, x):
         outputs = self._act(self._norm(self._conv_head(x)))
         if self.cfg.get('local_pooling'):
-            outputs = self._avg_pooling(outputs)  # TODO fix this
+            outputs = self._avg_pooling(outputs)
             if self._dropout:
                 outputs = self._dropout(outputs)
-            if self._fc: # TODO where are no fc in head, how it works?
+            if self._fc:  # TODO where are no fc in head, how it works?
                 outputs = torch.squeeze(outputs, self.h_axis)
                 outputs = torch.squeeze(outputs, self.w_axis)
         else:
