@@ -12,7 +12,7 @@ This is just a playground project. For better implementation check https://githu
 
 1. git clone https://github.com/danjafish/effv2_pytorch.git
 2. Install package with cd effv2_pytorch/ &&  pip install .
-3. Use model as simple as from effnetv2_pytorch.effnetv2_model import EffnetV2Model 
+3. Use model as simple as: from effnetv2_pytorch.effnetv2_model import EffnetV2Model 
 
 Avaliable params are:
 
@@ -27,5 +27,5 @@ Avaliable model_name values:
 	'efficientnetv2-m'
 	'efficientnetv2-l'
 
-See example in test.ipynb. See dummy training examples in effnetv2_simple_train.ipynb
+See example in examples/test.ipynb. See dummy training examples in examples/effnetv2_simple_train.ipynb
 
